@@ -1,0 +1,20 @@
+{
+  "name": "eventflux-cqrs-stream",
+  "version": "1.0.0",
+  "description": "Enterprise Distributed Event Streaming & CQRS Architecture with Event Sourcing, Outbox Pattern, and Real-time Projections",
+  "main": "src/application/command-bus.js",
+  "scripts": {
+    "test": "node tests/eventflux.test.js"
+  },
+  "keywords": [
+    "event-sourcing",
+    "cqrs",
+    "distributed-systems",
+    "outbox-pattern",
+    "optimistic-concurrency",
+    "clean-architecture",
+    "domain-driven-design"
+  ],
+  "author": "أ. طارق ابوعشي",
+  "license": "MIT"
+}

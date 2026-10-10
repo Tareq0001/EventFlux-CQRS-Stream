@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventFlux CQRS & Event Streaming Architecture | أ. طارق ابوعشي</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0A0E17;
+      --surface: #121826;
+      --surface-2: #1A2338;
+      --border: #23304D;
+      --accent: #00F0FF;
+      --accent-glow: rgba(0, 240, 255, 0.25);
+      --success: #00FF88;
+      --warning: #FFB800;
+      --danger: #FF3366;
+      --text: #F1F5F9;
+      --muted: #94A3B8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Cairo', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .top-nav {
+      background: rgba(18, 24, 38, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand { display: flex; align-items: center; gap: 0.85rem; }
+    .brand-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, #00F0FF 0%, #0077FE 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .brand-title { font-size: 1.25rem; font-weight: 800; color: #FFF; }
+    .brand-sub { font-size: 0.8rem; color: var(--muted); }
+    .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .hero {
+      background: linear-gradient(180deg, rgba(0, 240, 255, 0.05) 0%, transparent 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2.5rem;
+      margin-bottom: 2rem;
+    }
+    .grid-kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .card-kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-kpi::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+    }
+    .kpi-num { font-size: 2.2rem; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--accent); }
+    .kpi-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
+    
+    .main-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 2rem;
+    }
+    @media (max-width: 1024px) {
+      .main-layout { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+    .panel-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+    }
+    .btn {
+      background: var(--accent);
+      color: #0A0E17;
+      font-weight: 800;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      width: 100%;
+      margin-bottom: 0.75rem;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+    .btn-secondary { background: var(--surface-2); color: #FFF; border: 1px solid var(--border); }
+    .btn-danger { background: var(--danger); color: #FFF; }
+    .btn-success { background: var(--success); color: #0A0E17; }
+    
+    .event-stream-box {
+      max-height: 480px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .event-card {
+      background: #0D1322;
+      border: 1px solid var(--border);
+      border-right: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .event-type { font-weight: 800; color: var(--accent); }
+    .event-meta { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    .event-payload { background: #070B12; padding: 0.5rem; border-radius: 6px; margin-top: 6px; color: #7EE787; font-size: 0.78rem; word-break: break-all; }
+
+    .partition-visualizer {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .partition-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .partition-title { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .offset-badge { font-family: 'JetBrains Mono', monospace; font-size: 1.4rem; font-weight: 800; color: var(--success); }
+
+    .author-seal-box {
+      margin-top: 3rem;
+      padding: 2rem;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+    }
+    .author-seal-glyph {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: linear-gradient(135deg, #FFD700 0%, #B8860B 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; box-shadow: 0 0 25px rgba(255, 215, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top-nav">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">EventFlux // CQRS & Event Sourcing Engine</div>
+        <div class="brand-sub">Distributed Message Stream, Transactional Outbox & Projections</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+      <span style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--success);">
+        <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success);"></span>
+        CLUSTER HEALTH: 100% ONLINE
+      </span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1 style="font-size: 2.2rem; font-weight: 900; margin-bottom: 0.75rem;">
+        منظومة معمارية متكاملة لتدفق الأحداث وفصل الاستعلام عن التعديل (CQRS & Event Sourcing)
+      </h1>
+      <p style="color: var(--muted); max-width: 900px; font-size: 1.05rem;">
+        بنية تحتية هندسية تعتمد على سجل أحداث غير قابل للتعديل (Append-Only Event Store)، ونمط صندوق الصادر المضمون (Transactional Outbox)، وإعادة بناء الحالة الفورية مع الحماية من تعارض التزامن (Optimistic Concurrency Control).
+      </p>
+    </section>
+
+    <!-- KPI ROW -->
+    <div class="grid-kpi">
+      <div class="card-kpi">
+        <div class="kpi-num" id="kpiEvents">0</div>
+        <div class="kpi-label">إجمالي الأحداث المسجلة (Event Store Log)</div>
+      </div>
+      <div class="card-kpi">
+        <div class="kpi-num" id="kpiOrders">0</div>
+        <div class="kpi-label">إجمالي الطلبات (Materialized Views)</div>
+      </div>
+      <div class="card-kpi">
+        <div class="kpi-num" id="kpiRevenue">$0</div>
+        <div class="kpi-label">الإيرادات المحسوبة تلقائياً (CQRS Projection)</div>
+      </div>
+      <div class="card-kpi">
+        <div class="kpi-num" id="kpiOutbox">0</div>
+        <div class="kpi-label">رسائل الصندوق المرسلة للبروكر (Outbox Published)</div>
+      </div>
+    </div>
+
+    <!-- PARTITION TOPOLOGY -->
+    <div class="panel" style="margin-bottom: 2rem;">
+      <div class="panel-header">
+        <h3 style="font-weight: 800;">توزيع التقسيمات ومؤشرات الإزاحة (Topic: orders.v1 // Partitions)</h3>
+        <span style="font-size: 0.85rem; color: var(--muted);">Partitioner: Hash(AggregateId) % 3</span>
+      </div>
+      <div class="partition-visualizer">
+        <div class="partition-box">
+          <div class="partition-title">PARTITION #0</div>
+          <div class="offset-badge" id="part0">0</div>
+          <div style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">CURRENT OFFSET</div>
+        </div>
+        <div class="partition-box">
+          <div class="partition-title">PARTITION #1</div>
+          <div class="offset-badge" id="part1">0</div>
+          <div style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">CURRENT OFFSET</div>
+        </div>
+        <div class="partition-box">
+          <div class="partition-title">PARTITION #2</div>
+          <div class="offset-badge" id="part2">0</div>
+          <div style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">CURRENT OFFSET</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN INTERACTIVE WORKBENCH -->
+    <div class="main-layout">
+      <!-- COMMAND BUS DISPATCHER -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3 style="font-weight: 800;">إرسال الأوامر (Command Bus)</h3>
+          <span style="font-size: 0.78rem; background: var(--surface-2); padding: 0.2rem 0.6rem; border-radius: 6px;">WRITE MODEL</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1.25rem;">
+          انقر لإرسال أوامر حقيقية تطبق الشروط المنطقية للـ Aggregate وتسجل أحداثاً فورية:
+        </p>
+
+        <button class="btn" id="btnCreateOrder">
+          <span>➕</span> إنشاء طلب جديد (CreateOrderCommand)
+        </button>
+
+        <button class="btn btn-success" id="btnPayOrder">
+          <span>💳</span> تأكيد الدفع الإلكتروني (PayOrderCommand)
+        </button>
+
+        <button class="btn btn-secondary" id="btnShipOrder">
+          <span>🚚</span> شحن الطلب المسدد (ShipOrderCommand)
+        </button>
+
+        <button class="btn btn-danger" id="btnCancelOrder">
+          <span>❌</span> إلغاء الطلب (CancelOrderCommand)
+        </button>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0;">
+
+        <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem;">الطلب النشط حالياً:</div>
+        <div id="activeOrderDisplay" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: #070B12; padding: 0.75rem; border-radius: 8px; color: var(--accent);">
+          لا يوجد طلب قيد المعالجة
+        </div>
+      </div>
+
+      <!-- EVENT LOG & REPLAY -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3 style="font-weight: 800;">سجل تدفق الأحداث (Event Stream & Projections)</h3>
+          <span style="font-size: 0.78rem; background: var(--surface-2); padding: 0.2rem 0.6rem; border-radius: 6px;">READ MODEL</span>
+        </div>
+
+        <div class="event-stream-box" id="eventStreamContainer">
+          <div style="text-align: center; color: var(--muted); padding: 3rem 0;">
+            سجل الأحداث فارغ؛ ابدأ بإرسال الأوامر من اللوحة الجانبية
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTHOR SEAL -->
+    <div class="author-seal-box">
+      <div class="author-seal-glyph">🏛️</div>
+      <div style="text-align: right;">
+        <h4 style="font-size: 1.15rem; color: #FFD700; font-weight: 800;">أ. طارق ابوعشي</h4>
+        <div style="font-size: 0.85rem; color: var(--muted);">هندسة الأنظمة الموزعة ومعمارية تدفق الأحداث المتقدمة</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- SCRIPTS -->
+  <script src="src/domain/event.js"></script>
+  <script src="src/domain/aggregate.js"></script>
+  <script src="src/infrastructure/event-store.js"></script>
+  <script src="src/infrastructure/projection-engine.js"></script>
+  <script src="src/infrastructure/outbox-processor.js"></script>
+  <script src="src/application/command-bus.js"></script>
+  <script>
+    // Initialize CQRS Core
+    const store = new EventStore();
+    const projections = new ProjectionEngine(store);
+    const outbox = new OutboxProcessor(async (evt) => true);
+    const bus = new CommandBus(store, outbox);
+
+    let activeOrderId = null;
+    let partitionCounts = [0, 0, 0];
+
+    function updateUI() {
+      const kpis = projections.getKPIs();
+      document.getElementById('kpiEvents').textContent = store.globalLog.length;
+      document.getElementById('kpiOrders').textContent = kpis.totalOrders;
+      document.getElementById('kpiRevenue').textContent = '$' + kpis.totalRevenue.toLocaleString();
+      document.getElementById('kpiOutbox').textContent = outbox.publishedCount;
+
+      document.getElementById('part0').textContent = partitionCounts[0];
+      document.getElementById('part1').textContent = partitionCounts[1];
+      document.getElementById('part2').textContent = partitionCounts[2];
+
+      if (activeOrderId) {
+        const summary = projections.getOrderSummary(activeOrderId);
+        if (summary) {
+          document.getElementById('activeOrderDisplay').textContent = 
+            `ORDER ID: ${summary.orderId}\nSTATUS: ${summary.status}\nAMOUNT: $${summary.totalAmount}`;
+        }
+      }
+    }
+
+    function renderEventToStream(evt) {
+      const container = document.getElementById('eventStreamContainer');
+      if (store.globalLog.length === 1) container.innerHTML = '';
+
+      const card = document.createElement('div');
+      card.className = 'event-card';
+
+      // Assign to partition
+      const pIdx = Math.abs(hashCode(evt.aggregateId)) % 3;
+      partitionCounts[pIdx]++;
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between;">
+          <span class="event-type">⚡ ${evt.type}</span>
+          <span style="color: var(--muted);">OFFSET #${evt.offset}</span>
+        </div>
+        <div class="event-meta">Aggregate: ${evt.aggregateId} | Partition: P-${pIdx} | ${new Date(evt.metadata.timestamp).toLocaleTimeString()}</div>
+        <div class="event-payload">${JSON.stringify(evt.payload)}</div>
+      `;
+      container.prepend(card);
+    }
+
+    function hashCode(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) hash = (hash << 5) - hash + str.charCodeAt(i);
+      return hash;
+    }
+
+    // Subscribe to events
+    store.subscribe((evt) => {
+      renderEventToStream(evt);
+      outbox.processBatch(5).then(() => updateUI());
+    });
+
+    // Buttons
+    document.getElementById('btnCreateOrder').addEventListener('click', async () => {
+      activeOrderId = 'ORD-' + Math.floor(1000 + Math.random() * 9000);
+      const amount = Math.floor(100 + Math.random() * 900);
+      try {
+        await bus.execute({
+          type: 'CreateOrderCommand',
+          orderId: activeOrderId,
+          customerId: 'CUST-' + Math.floor(10 + Math.random() * 90),
+          items: [{ name: 'Enterprise Cloud Instance', price: amount }],
+          totalAmount: amount
+        });
+      } catch (e) { alert(e.message); }
+    });
+
+    document.getElementById('btnPayOrder').addEventListener('click', async () => {
+      if (!activeOrderId) return alert('الرجاء إنشاء طلب أولاً!');
+      const summary = projections.getOrderSummary(activeOrderId);
+      if (!summary) return;
+      try {
+        await bus.execute({
+          type: 'PayOrderCommand',
+          orderId: activeOrderId,
+          paymentReference: 'PAY-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+          paidAmount: summary.totalAmount
+        });
+      } catch (e) { alert(e.message); }
+    });
+
+    document.getElementById('btnShipOrder').addEventListener('click', async () => {
+      if (!activeOrderId) return alert('الرجاء إنشاء طلب وسداده أولاً!');
+      try {
+        await bus.execute({
+          type: 'ShipOrderCommand',
+          orderId: activeOrderId,
+          trackingNumber: 'TRK-' + Math.floor(100000 + Math.random() * 900000),
+          carrier: 'FedEx-Priority'
+        });
+      } catch (e) { alert(e.message); }
+    });
+
+    document.getElementById('btnCancelOrder').addEventListener('click', async () => {
+      if (!activeOrderId) return alert('لا يوجد طلب نشط لإلغائه!');
+      try {
+        await bus.execute({
+          type: 'CancelOrderCommand',
+          orderId: activeOrderId,
+          reason: 'Customer initiated cancellation via API'
+        });
+      } catch (e) { alert(e.message); }
+    });
+
+    // Seed 2 initial orders
+    setTimeout(() => {
+      document.getElementById('btnCreateOrder').click();
+      setTimeout(() => document.getElementById('btnPayOrder').click(), 400);
+    }, 200);
+  </script>
+</body>
+</html>
